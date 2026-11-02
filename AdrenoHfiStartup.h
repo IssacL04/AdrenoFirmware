@@ -5,7 +5,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Modern A6xx/A7xx wire profile. Legacy and A8xx table formats are excluded. */
+/* Modern HFI transport; performance table format is selected explicitly. */
+enum {AdrenoHfiPerfA6xxA7xx,AdrenoHfiPerfA8xx};
 typedef struct {uint64_t hz;uint32_t vote;} AdrenoHfiPerformanceLevel;
 typedef struct {
     unsigned gpu_count,gmu_count;
@@ -16,6 +17,8 @@ typedef struct {
     uint32_t ddr_addresses[8],ddr_data[16][8];
     uint32_t acd_version,acd_enable_mask,acd_stride,acd_count,acd_data[32];
     unsigned enable_ifpc;
+    unsigned performance_table;
+    uint32_t gpu_dependency_votes[16]; /* A8xx dependent ARC votes, indexed like gpu[]. */
 } AdrenoHfiStartupConfig;
 typedef enum {
     AdrenoHfiStageNone,AdrenoHfiStagePerformance,AdrenoHfiStageBandwidth,

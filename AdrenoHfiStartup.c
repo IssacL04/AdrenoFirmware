@@ -24,8 +24,11 @@ AdrenoHfiStartupStatus AdrenoHfiStartupValidate(const AdrenoHfiStartupConfig *c)
 {
     if(!c || !levels(c->gpu,c->gpu_count,16) || !levels(c->gmu,c->gmu_count,4) ||
         !c->bandwidth_count || c->bandwidth_count>16 || c->enable_ifpc>1 ||
+        c->performance_table>AdrenoHfiPerfA8xx ||
         !addresses(c->cnoc_addresses,c->cnoc_count,6) ||
         !addresses(c->ddr_addresses,c->ddr_count,8))return AdrenoHfiStartupInvalid;
+    const unsigned dependencies=c->performance_table==AdrenoHfiPerfA8xx?c->gpu_count:0;
+    if(!zero(c->gpu_dependency_votes+dependencies,16-dependencies))return AdrenoHfiStartupInvalid;
     if(c->cnoc_wait_mask>>c->cnoc_count || c->ddr_wait_mask>>c->ddr_count)return AdrenoHfiStartupInvalid;
     for(unsigned i=0;i<c->cnoc_count;++i)
         for(unsigned j=0;j<c->ddr_count;++j)if(c->cnoc_addresses[i]==c->ddr_addresses[j])return AdrenoHfiStartupInvalid;
@@ -56,6 +59,21 @@ AdrenoHfiStartupStatus AdrenoHfiStartupEncode(const AdrenoHfiStartupConfig *c,
     size_t n=0;unsigned message=0;
     switch(stage) {
     case AdrenoHfiStagePerformance:
+        if(c->performance_table==AdrenoHfiPerfA8xx) {
+            message=15;
+            p[n++]=0; /* table version */
+            p[n++]=1; /* HFI_TABLE_GPU_PERF */
+            p[n++]=c->gpu_count;p[n++]=3;
+            for(unsigned i=0;i<c->gpu_count;++i) {
+                p[n++]=c->gpu[i].vote;p[n++]=c->gpu_dependency_votes[i];
+                p[n++]=(uint32_t)(c->gpu[i].hz/1000);
+            }
+            p[n++]=c->gmu_count;p[n++]=2;
+            for(unsigned i=0;i<c->gmu_count;++i) {
+                p[n++]=c->gmu[i].vote;p[n++]=(uint32_t)(c->gmu[i].hz/1000);
+            }
+            break;
+        }
         message=4;n=58;
         for(size_t i=0;i<n;++i)p[i]=0;
         p[0]=c->gpu_count;p[1]=c->gmu_count;

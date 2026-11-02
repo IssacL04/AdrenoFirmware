@@ -17,6 +17,13 @@ extern "C" {
 AdrenoHfiStartupStatus AdrenoHfiArcVotes(const uint32_t *levels,size_t level_count,
     const uint8_t *primary,size_t primary_bytes,const uint8_t *secondary,size_t secondary_bytes,
     uint32_t *votes,size_t capacity);
+typedef struct {const uint8_t *data;size_t bytes;} AdrenoHfiRail;
+/* Gen8 matches the secondary rail to the selected primary corner and packs
+ * MX/BX dependency votes. bx={0} means authoritative absence in command-db.
+ * Both outputs remain unchanged on error; neither function changes a rail. */
+AdrenoHfiStartupStatus AdrenoHfiGen8Votes(const uint32_t *levels,size_t count,
+    const AdrenoHfiRail *gfx,const AdrenoHfiRail *secondary,const AdrenoHfiRail *mx,
+    const AdrenoHfiRail *bx,uint32_t *votes,uint32_t *dependencies,size_t capacity);
 typedef struct {
     uint32_t address,unit;
     uint16_t width,buswidth;

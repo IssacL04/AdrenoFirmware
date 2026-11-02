@@ -41,6 +41,42 @@ AdrenoHfiStartupStatus AdrenoHfiBcmAux(AdrenoHfiBcm *b,const uint8_t *p,size_t b
     if(!b || !p || bytes!=8 || p[7])return AdrenoHfiStartupInvalid;
     b->unit=le32(p);b->width=le16(p+4);b->vcd=p[6];return AdrenoHfiStartupSuccess;
 }
+static unsigned corner(const AdrenoHfiRail *r,uint32_t level)
+{
+    unsigned last=0;
+    for(unsigned i=0;i<r->bytes/2;++i) {
+        unsigned value=le16(r->data+2*i);
+        if(value>=level)return i;
+        if(value)last=i;
+    }
+    return last;
+}
+AdrenoHfiStartupStatus AdrenoHfiGen8Votes(const uint32_t *levels,size_t count,
+    const AdrenoHfiRail *gfx,const AdrenoHfiRail *secondary,const AdrenoHfiRail *mx,
+    const AdrenoHfiRail *bx,uint32_t *votes,uint32_t *dependencies,size_t capacity)
+{
+    if(!gfx || !secondary || !mx || !bx || !votes || !dependencies ||
+        !rail(mx->data,mx->bytes) || (!!bx->data!=!!bx->bytes) ||
+        (bx->data && !rail(bx->data,bx->bytes)))return AdrenoHfiStartupInvalid;
+    uint32_t gx[16],dep[16];
+    if(AdrenoHfiArcVotes(levels,count,gfx->data,gfx->bytes,
+        secondary->data,secondary->bytes,gx,capacity))return AdrenoHfiStartupInvalid;
+    for(size_t i=0;i<count;++i) {
+        const uint32_t selected=gx[i]>>16;
+        gx[i]=(gx[i]&0xffff00ffu)|(corner(secondary,selected)<<8);
+        if(!i) {dep[i]=UINT32_MAX;continue;}
+        unsigned m=corner(mx,levels[i]);
+        if(m>63)return AdrenoHfiStartupInvalid;
+        dep[i]=(0x3fffu<<14)|(m<<8)|0xffu;
+        if(bx->data) {
+            unsigned b=corner(bx,selected);
+            if(b>63)return AdrenoHfiStartupInvalid;
+            dep[i]=(dep[i]&~0x03f00000u)|(b<<20);
+        }
+    }
+    for(size_t i=0;i<count;++i) {votes[i]=gx[i];dependencies[i]=dep[i];}
+    return AdrenoHfiStartupSuccess;
+}
 static int address(uint32_t a){return a && !(a&3);}
 AdrenoHfiStartupStatus AdrenoHfiBuildBandwidth(const uint32_t *kbps,size_t count,
     const AdrenoHfiBcm *bcms,size_t n,uint32_t cn0,AdrenoHfiStartupConfig *c)

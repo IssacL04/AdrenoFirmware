@@ -91,6 +91,21 @@ int main(void)
 {
     CHECK(!posix_memalign((void **)&shared,4096,16384));
     unsigned cases=0;
+    /* A8xx TABLE message has variable GX/CX entries, including dependent ARC votes. */
+    setup(0,0);config.performance_table=AdrenoHfiPerfA8xx;
+    for(unsigned i=0;i<4;++i)config.gpu_dependency_votes[i]=0x80+i;
+    CHECK(run()==AdrenoHfiStartupSuccess && peer.count==4 && peer.ids[0]==15);
+    const uint32_t gen8[]={0,1,4,3,0,0x80,0,3,0x81,100000,6,0x82,200000,
+        9,0x83,300000,3,2,0,0,4,200000,8,400000};
+    CHECK(peer.words[0]==sizeof(gen8)/4 && !memcmp(peer.messages[0],gen8,sizeof(gen8)));
+    setup(0,0);config.performance_table=2;refused();
+    setup(0,0);config.gpu_dependency_votes[0]=1;refused();
+    setup(0,0);config.performance_table=AdrenoHfiPerfA8xx;config.gpu_dependency_votes[4]=1;refused();
+    for(unsigned mode=1;mode<=3;++mode) {
+        setup(0,0);config.performance_table=AdrenoHfiPerfA8xx;peer.fail_at=1;peer.mode=mode;
+        CHECK(run()==(mode==3?AdrenoHfiStartupTimeout:AdrenoHfiStartupTransportError));
+        CHECK(state.poisoned && hfi.poisoned && !state.completed && peer.count==1);
+    }
     for(unsigned acd=0;acd<2;++acd)for(unsigned ifpc=0;ifpc<2;++ifpc) {
         setup(acd,ifpc);CHECK(run()==AdrenoHfiStartupSuccess);
         unsigned count=4+2*acd+ifpc;CHECK(peer.count==count && state.completed && !state.poisoned);
@@ -156,6 +171,6 @@ int main(void)
     setup(1,1);services.total_timeout_us=99;refused();
     setup(1,1);uint32_t p[159],copy[159],id=99;size_t n=9;memset(p,0xa5,sizeof(p));memcpy(copy,p,sizeof(p));
     CHECK(AdrenoHfiStartupEncode(&config,AdrenoHfiStageComplete,&id,p,159,&n)==AdrenoHfiStartupInvalid && !n && id==99 && !memcmp(p,copy,sizeof(p)));
-    free(shared);printf("PASS: four startup profiles, %u per-stage failures, real transport software ACKs, deadlines/clock/fault quarantine and pre-publication refusal\n",cases);
+    free(shared);printf("PASS: A8xx variable performance table and failure quarantine; four A7xx profiles, %u per-stage failures, software ACKs and pre-publication refusal\n",cases);
     return 0;
 }

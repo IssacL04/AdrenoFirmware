@@ -1,13 +1,22 @@
 /* SPDX-License-Identifier: BSD-2-Clause-Patent */
 /* HFI wire facts from the source pinned by the umbrella. No Linux runtime. */
 #include "AdrenoHfi.h"
-#if !defined(__aarch64__) || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 #error Modern GMU HFI transport requires little-endian AArch64
 #endif
 #define WORDS 1024u
+#if defined(__aarch64__)
 static void acquire(void){__asm__ volatile("dmb oshld":::"memory");}
 static void publish(void){__asm__ volatile("dsb oshst":::"memory");}
 static void complete(void){__asm__ volatile("dmb osh":::"memory");}
+#elif defined(ADRENO_HFI_HOST_TEST)
+/* Software queue peers only; these fences do not implement device coherency. */
+static void acquire(void){__atomic_thread_fence(__ATOMIC_SEQ_CST);}
+static void publish(void){__atomic_thread_fence(__ATOMIC_SEQ_CST);}
+static void complete(void){__atomic_thread_fence(__ATOMIC_SEQ_CST);}
+#else
+#error Modern GMU HFI transport requires little-endian AArch64
+#endif
 static AdrenoHfiStatus poison(AdrenoHfi *h,AdrenoHfiStatus status)
 {h->poisoned=1;return status;}
 static AdrenoHfiStatus valid(AdrenoHfi *h,unsigned q,volatile uint32_t **header,
